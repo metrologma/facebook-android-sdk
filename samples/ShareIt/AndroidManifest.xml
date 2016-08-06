@@ -20,9 +20,11 @@
 -->
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.example.shareit">
+    package="com.example.shareit"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-sdk tools:overrideLibrary="org.xwalk.core"/>
 
     <application
         android:name="com.example.shareit.ShareItApplication"

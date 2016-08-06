@@ -25,9 +25,9 @@ import android.app.Dialog;
 import android.app.ProgressDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
+import android.content.ContextWrapper;
 import android.content.DialogInterface;
 import android.content.Intent;
-import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
@@ -35,14 +35,17 @@ import android.net.http.SslError;
 import android.os.Bundle;
 import android.util.DisplayMetrics;
 import android.view.*;
-import android.webkit.SslErrorHandler;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
+import android.webkit.ValueCallback;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import com.facebook.*;
 import com.facebook.R;
+
+import org.xwalk.core.XWalkCookieManager;
+import org.xwalk.core.XWalkResourceClient;
+import org.xwalk.core.XWalkUIClient;
+import org.xwalk.core.XWalkView;
 
 import java.util.Locale;
 
@@ -82,7 +85,7 @@ public class WebDialog extends Dialog {
     private String url;
     private String expectedRedirectUrl = REDIRECT_URI;
     private OnCompleteListener onCompleteListener;
-    private WebView webView;
+    private XWalkView webView;
     private ProgressDialog spinner;
     private ImageView crossImageView;
     private FrameLayout contentFrameLayout;
@@ -289,7 +292,7 @@ public class WebDialog extends Dialog {
         return isPageFinished;
     }
 
-    protected WebView getWebView() {
+    protected XWalkView getWebView() {
         return webView;
     }
 
@@ -387,7 +390,7 @@ public class WebDialog extends Dialog {
     @SuppressLint("SetJavaScriptEnabled")
     private void setUpWebView(int margin) {
         LinearLayout webViewContainer = new LinearLayout(getContext());
-        webView = new WebView(getContext().getApplicationContext()) {
+        webView = new XWalkView(((ContextWrapper) getContext()).getBaseContext()) {
             /* Prevent NPE on Motorola 2.2 devices
              * See https://groups.google.com/forum/?fromgroups=#!topic/android-developers/ktbwY2gtLKQ
              */
@@ -401,14 +404,15 @@ public class WebDialog extends Dialog {
         };
         webView.setVerticalScrollBarEnabled(false);
         webView.setHorizontalScrollBarEnabled(false);
-        webView.setWebViewClient(new DialogWebViewClient());
-        webView.getSettings().setJavaScriptEnabled(true);
-        webView.loadUrl(url);
+        webView.setResourceClient(new DialogXWalkWebViewClient(webView));
+        webView.setUIClient(new XwalkWunderUiClient(webView));
+        XWalkCookieManager mCookieManager = new XWalkCookieManager();
+        mCookieManager.removeAllCookie();
+
+        webView.load(url, null);
         webView.setLayoutParams(new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT));
         webView.setVisibility(View.INVISIBLE);
-        webView.getSettings().setSavePassword(false);
-        webView.getSettings().setSaveFormData(false);
         webView.setFocusable(true);
         webView.setFocusableInTouchMode(true);
         webView.setOnTouchListener(new View.OnTouchListener() {
@@ -428,9 +432,14 @@ public class WebDialog extends Dialog {
         contentFrameLayout.addView(webViewContainer);
     }
 
-    private class DialogWebViewClient extends WebViewClient {
+    private class DialogXWalkWebViewClient extends XWalkResourceClient {
+
+        public DialogXWalkWebViewClient(XWalkView view) {
+            super(view);
+        }
+
         @Override
-        public boolean shouldOverrideUrlLoading(WebView view, String url) {
+        public boolean shouldOverrideUrlLoading(XWalkView view, String url) {
             Utility.logd(LOG_TAG, "Redirect URL: " + url);
             if (url.startsWith(WebDialog.this.expectedRedirectUrl)) {
                 Bundle values = parseResponseUri(url);
@@ -487,36 +496,44 @@ public class WebDialog extends Dialog {
         }
 
         @Override
-        public void onReceivedError(WebView view, int errorCode,
-                String description, String failingUrl) {
-            super.onReceivedError(view, errorCode, description, failingUrl);
+        public void onReceivedLoadError(XWalkView view, int errorCode,
+                                        String description, String failingUrl) {
+            super.onReceivedLoadError(view, errorCode, description, failingUrl);
             sendErrorToListener(new FacebookDialogException(description, errorCode, failingUrl));
         }
 
         @Override
-        public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
+        public void onReceivedSslError(XWalkView view, ValueCallback<Boolean> callback, SslError error) {
             if (DISABLE_SSL_CHECK_FOR_TESTING) {
-                handler.proceed();
+                callback.onReceiveValue(false);
             } else {
-                super.onReceivedSslError(view, handler, error);
+                super.onReceivedSslError(view, callback, error);
 
-                handler.cancel();
+                callback.onReceiveValue(false);
                 sendErrorToListener(new FacebookDialogException(null, ERROR_FAILED_SSL_HANDSHAKE, null));
             }
         }
 
+    }
+
+    public class XwalkWunderUiClient extends XWalkUIClient {
+
+        public XwalkWunderUiClient(XWalkView view) {
+            super(view);
+        }
+
         @Override
-        public void onPageStarted(WebView view, String url, Bitmap favicon) {
+        public void onPageLoadStarted(XWalkView view, String url) {
             Utility.logd(LOG_TAG, "Webview loading URL: " + url);
-            super.onPageStarted(view, url, favicon);
+            super.onPageLoadStarted(view, url);
             if (!isDetached) {
                 spinner.show();
             }
         }
 
         @Override
-        public void onPageFinished(WebView view, String url) {
-            super.onPageFinished(view, url);
+        public void onPageLoadStopped(XWalkView view, String url, XWalkUIClient.LoadStatus status) {
+            super.onPageLoadStopped(view, url, status);
             if (!isDetached) {
                 spinner.dismiss();
             }

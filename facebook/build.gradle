@@ -16,6 +16,8 @@ dependencies {
     // Unit Tests
     testCompile 'com.android.support:appcompat-v7:23.4.0'
 
+    compile 'org.xwalk:xwalk_core_library:20.+'
+
     testCompile 'junit:junit:4.12'
     testCompile 'org.robolectric:robolectric:3.0'
     testCompile 'org.robolectric:shadows-support-v4:3.0'

@@ -25,10 +25,10 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.webkit.WebView;
 
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.xwalk.core.XWalkView;
 
 /**
  * com.facebook.internal is solely for the use of other packages within the Facebook SDK for
@@ -101,7 +101,7 @@ public class FacebookWebFallbackDialog extends WebDialog {
 
     @Override
     public void cancel() {
-        WebView webView = getWebView();
+        XWalkView webView = getWebView();
 
         // If the page hasn't loaded, or the listener is already called, then we can't interrupt
         // this cancellation. Either the JS won't be ready to consume the event, or the listener
@@ -129,7 +129,7 @@ public class FacebookWebFallbackDialog extends WebDialog {
                         "  event.initEvent('fbPlatformDialogMustClose',true,true);" +
                         "  document.dispatchEvent(event);" +
                         "})();";
-        webView.loadUrl("javascript:" + eventJS);
+        webView.load("javascript:" + eventJS, null);
 
         // Set up a timeout for the dialog to respond. If the timer expires, we need to honor
         // the user's desire to dismiss the dialog.
